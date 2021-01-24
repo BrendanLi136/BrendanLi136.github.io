@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/hua-128x128.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/hua-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/hua-16x16.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"brendanli136.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":true,"show_result":true,"style":"flat"},"back2top":{"enable":true,"sidebar":false,"scrollpercent":true},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
+  </script>
+
+  <meta name="description" content="Docker 网络理解Docker0 测试   三个网络">
+<meta property="og:type" content="article">
+<meta property="og:title" content="六、DockerNet">
+<meta property="og:url" content="https://brendanli136.github.io/2020/11/19/Docker/DockerNet/index.html">
+<meta property="og:site_name" content="Brendan Blog">
+<meta property="og:description" content="Docker 网络理解Docker0 测试   三个网络">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://brendanli136.github.io/2020/11/19/Docker/DockerNet/net-20201128142202091.png">
+<meta property="og:image" content="https://brendanli136.github.io/2020/11/19/Docker/DockerNet/image-20201128144043900.png">
+<meta property="og:image" content="https://brendanli136.github.io/2020/11/19/Docker/DockerNet/image-20201128144513823.png">
+<meta property="og:image" content="https://brendanli136.github.io/2020/11/19/Docker/DockerNet/image-20201128151118502.png">
+<meta property="og:image" content="https://brendanli136.github.io/2020/11/19/Docker/DockerNet/image-20201128152416923.png">
+<meta property="og:image" content="https://brendanli136.github.io/2020/11/19/Docker/DockerNet/image-20201128154036638.png">
+<meta property="og:image" content="https://brendanli136.github.io/2020/11/19/Docker/DockerNet/image-20201128160509490.png">
+<meta property="og:image" content="https://brendanli136.github.io/2020/11/19/Docker/DockerNet/image-20201128162105535.png">
+<meta property="og:image" content="https://brendanli136.github.io/2020/11/19/Docker/DockerNet/image-20201128162209246.png">
+<meta property="og:image" content="https://brendanli136.github.io/2020/11/19/Docker/DockerNet/image-20201128162650714.png">
+<meta property="og:image" content="https://brendanli136.github.io/2020/11/19/Docker/DockerNet/2020102714234234.png">
+<meta property="og:image" content="https://brendanli136.github.io/2020/11/19/Docker/DockerNet/20201027142840723.png">
+<meta property="og:image" content="https://brendanli136.github.io/2020/11/19/Docker/DockerNet/2020102714434912.png">
+<meta property="article:published_time" content="2020-11-18T16:19:41.000Z">
+<meta property="article:modified_time" content="2021-01-19T16:37:58.903Z">
+<meta property="article:author" content="BaoHua Li">
+<meta property="article:tag" content="Docker">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://brendanli136.github.io/2020/11/19/Docker/DockerNet/net-20201128142202091.png">
+
+<link rel="canonical" href="https://brendanli136.github.io/2020/11/19/Docker/DockerNet/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>六、DockerNet | Brendan Blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+<link rel="alternate" href="/atom.xml" title="Brendan Blog" type="application/atom+xml">
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Brendan Blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">宝华 の 博客</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://brendanli136.github.io/2020/11/19/Docker/DockerNet/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/user.gif">
+      <meta itemprop="name" content="BaoHua Li">
+      <meta itemprop="description" content="直到这一刻微笑着说话为止，我至少留下了一公升眼泪">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Brendan Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          六、DockerNet
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2020-11-19 00:19:41" itemprop="dateCreated datePublished" datetime="2020-11-19T00:19:41+08:00">2020-11-19</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2021-01-20 00:37:58" itemprop="dateModified" datetime="2021-01-20T00:37:58+08:00">2021-01-20</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Docker/" itemprop="url" rel="index"><span itemprop="name">Docker</span></a>
+                </span>
+            </span>
+
+          
+            <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv" style="display: none;">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-eye"></i>
+              </span>
+              <span class="post-meta-item-text">阅读次数：</span>
+              <span id="busuanzi_value_page_pv"></span>
+            </span><br>
+            <span class="post-meta-item" title="本文字数">
+              <span class="post-meta-item-icon">
+                <i class="far fa-file-word"></i>
+              </span>
+                <span class="post-meta-item-text">本文字数：</span>
+              <span>10k</span>
+            </span>
+            <span class="post-meta-item" title="阅读时长">
+              <span class="post-meta-item-icon">
+                <i class="far fa-clock"></i>
+              </span>
+                <span class="post-meta-item-text">阅读时长 &asymp;</span>
+              <span>10 分钟</span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="Docker-网络"><a href="#Docker-网络" class="headerlink" title="Docker 网络"></a>Docker 网络</h1><h2 id="理解Docker0"><a href="#理解Docker0" class="headerlink" title="理解Docker0"></a>理解Docker0</h2><blockquote>
+<p>测试</p>
+</blockquote>
+<p><img src="/2020/11/19/Docker/DockerNet/net-20201128142202091.png" alt="net-20201128142202091"></p>
+<p>三个网络</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"> 问题：docker 如何处理容器访问的？</span></span><br></pre></td></tr></table></figure>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">[root@baohua ~]# docker run -d -P --name tomcat01 tomcat</span><br><span class="line"></span><br><span class="line"><span class="meta">#</span><span class="bash">查看容器的内部网路地址 ip addr ， 发现容器启动的时候会得到一个 eth0@if113 的ip地址，docker分配的。</span></span><br><span class="line">[root@baohua ~]# docker exec -it tomcat01 ip addr</span><br><span class="line">1: lo: &lt;LOOPBACK,UP,LOWER_UP&gt; mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000</span><br><span class="line">    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00</span><br><span class="line">    inet 127.0.0.1/8 scope host lo</span><br><span class="line">       valid_lft forever preferred_lft forever</span><br><span class="line">112: eth0@if113: &lt;BROADCAST,MULTICAST,UP,LOWER_UP&gt; mtu 1500 qdisc noqueue state UP group default </span><br><span class="line">    link/ether 02:42:ac:11:00:02 brd ff:ff:ff:ff:ff:ff link-netnsid 0</span><br><span class="line">    inet 172.17.0.2/16 brd 172.17.255.255 scope global eth0</span><br><span class="line">       valid_lft forever preferred_lft forever</span><br><span class="line">       </span><br><span class="line"><span class="meta">#</span><span class="bash"> linux 可以ping通 docker 内部。</span></span><br><span class="line">[root@baohua ~]# ping 172.17.0.2</span><br><span class="line">PING 172.17.0.2 (172.17.0.2) 56(84) bytes of data.</span><br><span class="line">64 bytes from 172.17.0.2: icmp_seq=1 ttl=64 time=0.068 ms</span><br><span class="line">64 bytes from 172.17.0.2: icmp_seq=2 ttl=64 time=0.046 ms</span><br></pre></td></tr></table></figure>
+<blockquote>
+<p>原理</p>
+</blockquote>
+<ol>
+<li><p>每启动一个docker 容器，docker 就会给docker容器分配一个ip，只要安装了docker，就会有一个网卡docker0桥接模式，使用的技术是veth-pair技术！</p>
+<p><code>再次测试 ip addr</code></p>
+</li>
+</ol>
+<p><img src="/2020/11/19/Docker/DockerNet/image-20201128144043900.png" alt="image-20201128144043900"></p>
+<p><code>再启动一个容器测试</code>,发现又多了一对网卡</p>
+<p><img src="/2020/11/19/Docker/DockerNet/image-20201128144513823.png" alt="image-20201128144513823"></p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"> 发现容器带来的网卡，都是一对对的</span></span><br><span class="line"><span class="meta">#</span><span class="bash"> veth-pair 就是一堆的虚拟设备接口，他们都是成对出现的，一端连着协议，一端彼此相连。</span></span><br><span class="line"><span class="meta">#</span><span class="bash"> 正因为这个特性，veth-pair 充当一个桥梁，连接着各种虚拟网络设备的</span></span><br><span class="line"><span class="meta">#</span><span class="bash"> OpenStac，Docker 容器之间的连接，OVS的连接，都是	veth-pair的技术。</span></span><br></pre></td></tr></table></figure>
+<ol start="2">
+<li>测试tomcat01 和 tomcat02 是否可以ping 通</li>
+</ol>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">[root@baohua ~]# docker exec -it tomcat02 ping 172.17.0.2</span><br><span class="line">PING 172.17.0.2 (172.17.0.2) 56(84) bytes of data.</span><br><span class="line">64 bytes from 172.17.0.2: icmp_seq=1 ttl=64 time=0.083 ms</span><br><span class="line">64 bytes from 172.17.0.2: icmp_seq=2 ttl=64 time=0.053 ms</span><br><span class="line"></span><br><span class="line"><span class="meta">#</span><span class="bash"> 结论，容器之间是可以互相ping 通的。</span></span><br></pre></td></tr></table></figure>
+<p><img src="/2020/11/19/Docker/DockerNet/image-20201128151118502.png" alt="image-20201128151118502"></p>
+<p>结论：tomcat01 和 tomcat02 是公用的一个路由器，docker0</p>
+<p>所有的容器不指定网络的情况下，都是docker0 路由的，docker会给我们的容器分配一个默认的可用IP</p>
+<blockquote>
+<p>小结</p>
+</blockquote>
+<p>Docker 使用的是Linux的桥接，宿主机是一个Docker 容器的网桥 docker0</p>
+<p><img src="/2020/11/19/Docker/DockerNet/image-20201128152416923.png" alt="image-20201128152416923"></p>
+<p>Docker 中的所有的网络接口都是虚拟的，虚拟的转发效率高。</p>
+<p>只要容器删除，对应网桥一对就没了！</p>
+<p><img src="/2020/11/19/Docker/DockerNet/image-20201128154036638.png" alt="image-20201128154036638"></p>
+<h2 id="–link"><a href="#–link" class="headerlink" title="–link"></a>–link</h2><blockquote>
+<p>思考场景，编写微服务 database url = ip；项目不重启，ip换掉了，是否可以用名字来进行访问容器。</p>
+</blockquote>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">[root@baohua ~]# docker exec -it tomcat01 ping tomcat02</span><br><span class="line">ping: tomcat02: Name or service not known</span><br><span class="line"></span><br><span class="line"><span class="meta">#</span><span class="bash"> 如何解决这个问题！</span></span><br><span class="line"><span class="meta">#</span><span class="bash"> 通过 --link 可以解决了网络连通问题。</span></span><br><span class="line">[root@baohua ~]# docker run -d -P --name tomcat03 --link tomcat02 tomcat</span><br><span class="line">11c83adc5d6b0e6c1285a047f1ac815fdd4fd52f24a86455cc25a50211d78bf2</span><br><span class="line">[root@baohua ~]# docker exec -it tomcat03 ping tomcat02</span><br><span class="line">PING tomcat02 (172.17.0.3) 56(84) bytes of data.</span><br><span class="line">64 bytes from tomcat02 (172.17.0.3): icmp_seq=1 ttl=64 time=0.080 ms</span><br><span class="line">64 bytes from tomcat02 (172.17.0.3): icmp_seq=2 ttl=64 time=0.054 ms</span><br><span class="line"></span><br><span class="line"><span class="meta">#</span><span class="bash">反向可以ping通吗</span></span><br><span class="line">[root@baohua ~]# docker exec -it tomcat02 ping tomcat03</span><br><span class="line">ping: tomcat03: Name or service not known</span><br></pre></td></tr></table></figure>
+<p>其实tomcat03就是在本地配置了tomcat02的配置！</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"> 可以通过inspect来查看tomcat03，发现</span></span><br><span class="line">  &quot;Links&quot;: [</span><br><span class="line">                &quot;/tomcat02:/tomcat03/tomcat02&quot;</span><br><span class="line">            ],</span><br><span class="line">            </span><br><span class="line"><span class="meta">#</span><span class="bash"> 也可通过hosts配置</span></span><br><span class="line">[root@baohua ~]# docker exec -it tomcat03 cat /etc/hosts</span><br><span class="line">127.0.0.1	localhost</span><br><span class="line">::1	localhost ip6-localhost ip6-loopback</span><br><span class="line">fe00::0	ip6-localnet</span><br><span class="line">ff00::0	ip6-mcastprefix</span><br><span class="line">ff02::1	ip6-allnodes</span><br><span class="line">ff02::2	ip6-allrouters</span><br><span class="line">172.17.0.3	tomcat02 adc1a9fe5eb1</span><br><span class="line">172.17.0.4	11c83adc5d6b</span><br></pre></td></tr></table></figure>
+<p> –link 就是在hosts配置中增加了一个172.17.0.3    tomcat02 adc1a9fe5eb1</p>
+<blockquote>
+<p>现在不推荐使用docker0</p>
+<p>docker0问题：它不支持容器名连接访问！</p>
+</blockquote>
+<h2 id="自定义网络"><a href="#自定义网络" class="headerlink" title="自定义网络"></a>自定义网络</h2><p>查看所有的docker网路</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">[root@baohua ~]# docker network ls</span><br><span class="line">NETWORK ID          NAME                DRIVER              SCOPE</span><br><span class="line">657920809e64        bridge              bridge              local</span><br><span class="line">c5e0580fd4d4        host                host                local</span><br><span class="line">df9959eef401        none                null                local</span><br></pre></td></tr></table></figure>
+<p><strong>网络模式</strong></p>
+<ul>
+<li>bridge：桥接  docker(默认)</li>
+<li>none：不配置网络</li>
+<li>host：和宿主机共享网络</li>
+<li>container：容器网络联通！(局限很大)</li>
+</ul>
+<p><strong>测试</strong></p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"> 直接启动的容器默认加 --net bridge ，这个就是docker0</span></span><br><span class="line">docker run -d -P --name tomcat01 --net bridge tomcat</span><br><span class="line"></span><br><span class="line"><span class="meta">#</span><span class="bash"> docker0特点： 默认；域名不能访问，--link可以打通</span></span><br><span class="line"></span><br><span class="line"><span class="meta">#</span><span class="bash"> 自定义网络</span></span><br><span class="line"><span class="meta">#</span><span class="bash"> --driver bridge 桥接模式</span></span><br><span class="line"><span class="meta">#</span><span class="bash"> --subnet 192.168.0.0/16 子网	<span class="comment"># 192.168.0.2 - 192.168.255.255</span></span></span><br><span class="line"><span class="meta">#</span><span class="bash"> --gateway 192.168.0.1 网关</span></span><br><span class="line">[root@baohua ~]# docker network create --driver bridge --subnet 192.168.0.0/16 --gateway 192.168.0.1 mynet</span><br><span class="line">0051a2fa2c6543e1499461926e6477336043698856ebb5a5c05ac141f498ab25</span><br><span class="line">[root@baohua ~]# docker network ls</span><br><span class="line">NETWORK ID          NAME                DRIVER              SCOPE</span><br><span class="line">657920809e64        bridge              bridge              local</span><br><span class="line">c5e0580fd4d4        host                host                local</span><br><span class="line">0051a2fa2c65        mynet               bridge              local</span><br><span class="line">df9959eef401        none                null                local</span><br></pre></td></tr></table></figure>
+<p>自己的网络就创建好了</p>
+<p><img src="/2020/11/19/Docker/DockerNet/image-20201128160509490.png" alt="image-20201128160509490"></p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line">[root@baohua ~]# docker run -d -P --name tomcat-net-01 --net mynet tomcat</span><br><span class="line">769200544dc16a570edd1383cf81b7bdff2be6249073f436db29a6b462020b60</span><br><span class="line">[root@baohua ~]# docker run -d -P --name tomcat-net-02 --net mynet tomcat</span><br><span class="line">ecc9189ce0fb6cf2984a48c6e8a9eb4089a648df4c4a9452ee92dc35cb694a4d</span><br><span class="line"></span><br><span class="line"><span class="meta">#</span><span class="bash"> 可以通过ip地址ping通</span></span><br><span class="line">[root@baohua ~]# docker exec -it tomcat-net-01 ping 192.168.0.3</span><br><span class="line">PING 192.168.0.3 (192.168.0.3) 56(84) bytes of data.</span><br><span class="line">64 bytes from 192.168.0.3: icmp_seq=1 ttl=64 time=0.075 ms</span><br><span class="line">64 bytes from 192.168.0.3: icmp_seq=2 ttl=64 time=0.058 ms</span><br><span class="line">64 bytes from 192.168.0.3: icmp_seq=3 ttl=64 time=0.071 ms</span><br><span class="line">^C</span><br><span class="line">--- 192.168.0.3 ping statistics ---</span><br><span class="line">3 packets transmitted, 3 received, 0% packet loss, time 1000ms</span><br><span class="line">rtt min/avg/max/mdev = 0.058/0.068/0.075/0.007 ms</span><br><span class="line"></span><br><span class="line"><span class="meta">#</span><span class="bash"> 也可通过名字ping 通</span></span><br><span class="line">[root@baohua ~]# docker exec -it tomcat-net-01 ping tomcat-net-02</span><br><span class="line">PING tomcat-net-02 (192.168.0.3) 56(84) bytes of data.</span><br><span class="line">64 bytes from tomcat-net-02.mynet (192.168.0.3): icmp_seq=1 ttl=64 time=0.038 ms</span><br><span class="line">64 bytes from tomcat-net-02.mynet (192.168.0.3): icmp_seq=2 ttl=64 time=0.053 ms</span><br><span class="line">^C</span><br><span class="line">--- tomcat-net-02 ping statistics ---</span><br><span class="line">2 packets transmitted, 2 received, 0% packet loss, time 999ms</span><br><span class="line">rtt min/avg/max/mdev = 0.038/0.045/0.053/0.010 ms</span><br></pre></td></tr></table></figure>
+<p>自定义的网络docker都已经帮我们维护好了对应的关系，推荐这样使用。</p>
+<p>好处：</p>
+<p>redis - 不同的集群不同的网络，保证集群是安全和健康的。</p>
+<h2 id="网络连通"><a href="#网络连通" class="headerlink" title="网络连通"></a>网络连通</h2><p><img src="/2020/11/19/Docker/DockerNet/image-20201128162105535.png" alt="image-20201128162105535"></p>
+<p><img src="/2020/11/19/Docker/DockerNet/image-20201128162209246.png" alt="image-20201128162209246"></p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"> 测试打通 tomcat01 - mynet</span></span><br><span class="line">[root@baohua ~]# docker network connect mynet tomcat01</span><br><span class="line"></span><br><span class="line"><span class="meta">#</span><span class="bash"> 连通之后就是将tomcat01放到了 mynet网络下</span></span><br><span class="line"></span><br><span class="line"><span class="meta">#</span><span class="bash"> 一个容器两个ip地址</span></span><br><span class="line"><span class="meta">#</span><span class="bash"> 阿里云服务 	公网ip，私网ip</span></span><br><span class="line">[root@baohua ~]# docker network inspect mynet</span><br></pre></td></tr></table></figure>
+<p><img src="/2020/11/19/Docker/DockerNet/image-20201128162650714.png" alt="image-20201128162650714"></p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"> tomcat01 可以连通</span></span><br><span class="line">[root@baohua ~]# docker exec -it tomcat01 ping tomcat-net-01</span><br><span class="line">PING tomcat-net-01 (192.168.0.2) 56(84) bytes of data.</span><br><span class="line">64 bytes from tomcat-net-01.mynet (192.168.0.2): icmp_seq=1 ttl=64 time=0.065 ms</span><br><span class="line">64 bytes from tomcat-net-01.mynet (192.168.0.2): icmp_seq=2 ttl=64 time=0.054 ms</span><br><span class="line">^C</span><br><span class="line">--- tomcat-net-01 ping statistics ---</span><br><span class="line">2 packets transmitted, 2 received, 0% packet loss, time 1000ms</span><br><span class="line">rtt min/avg/max/mdev = 0.054/0.059/0.065/0.009 ms</span><br><span class="line"></span><br><span class="line"><span class="meta">#</span><span class="bash"> 02没有打通</span></span><br><span class="line">[root@baohua ~]# docker exec -it tomcat02 ping tomcat-net-01</span><br><span class="line">ping: tomcat-net-01: Name or service not known</span><br></pre></td></tr></table></figure>
+
+
+<h2 id="实战Redis部署集群"><a href="#实战Redis部署集群" class="headerlink" title="实战Redis部署集群"></a>实战Redis部署集群</h2><ol>
+<li>创建redis网络</li>
+</ol>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">docker network create redis --subnet 172.38.0.0/16</span><br></pre></td></tr></table></figure>
+<p><img src="/2020/11/19/Docker/DockerNet/2020102714234234.png" alt="img"></p>
+<ol start="2">
+<li>创建集群</li>
+</ol>
+<ul>
+<li>使用 shell 脚本创建 6 个 redis 容器，并配置</li>
+</ul>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line">for port in $(seq 1 6); \</span><br><span class="line">do \</span><br><span class="line">mkdir -p /data/redis/node-$&#123;port&#125;/conf</span><br><span class="line">touch /data/redis/node-$&#123;port&#125;/conf/redis.conf</span><br><span class="line">cat &lt;&lt; EOF &gt;/data/redis/node-$&#123;port&#125;/conf/redis.conf</span><br><span class="line">port 6379 </span><br><span class="line">bind 0.0.0.0</span><br><span class="line">cluster-enabled yes </span><br><span class="line">cluster-config-file nodes.conf</span><br><span class="line">cluster-node-timeout 5000</span><br><span class="line">cluster-announce-ip 172.18.0.1$&#123;port&#125;</span><br><span class="line">cluster-announce-port 6379</span><br><span class="line">cluster-announce-bus-port 16379</span><br><span class="line">appendonly yes</span><br><span class="line">EOF</span><br></pre></td></tr></table></figure>
+<p> <strong>查看是否创建成功</strong></p>
+<p><img src="/2020/11/19/Docker/DockerNet/20201027142840723.png" alt="img"></p>
+<ol start="3">
+<li>通过配置文件启动 redis 容器</li>
+</ol>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">docker run -p 6371:6379 -p 16371:16379 --name redis-1 \</span><br><span class="line">-v /data/redis/node-1/data:/data \</span><br><span class="line">-v /data/redis/node-1/conf/redis.conf:/etc/redis/redis.conf \</span><br><span class="line">-d --net redis --ip 172.18.0.11 redis:5.0.9-alpine3.11 redis-server /etc/redis/redis.conf</span><br></pre></td></tr></table></figure>
+<p><strong>同理，其余五个节点类似</strong></p>
+<p>六个节点启动成功如下图</p>
+<p><img src="/2020/11/19/Docker/DockerNet/2020102714434912.png" alt="img"></p>
+<p>进入 redis-01</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br></pre></td><td class="code"><pre><span class="line">docker exec -it redis-1 /bin/sh</span><br><span class="line">/data # ls</span><br><span class="line">appendonly.aof  nodes.conf</span><br><span class="line">/data # redis-cli --cluster create 172.18.0.11:6379 172.18.0.12:6379 172.18.0.13:6379 172.18.0.14:6379 172.18.0.15:6379 172.18.0.16:6379 --cluster-replicas 1</span><br><span class="line"><span class="meta">&gt;</span><span class="bash">&gt;&gt; Performing <span class="built_in">hash</span> slots allocation on 6 nodes...</span></span><br><span class="line">Master[0] -&gt; Slots 0 - 5460</span><br><span class="line">Master[1] -&gt; Slots 5461 - 10922</span><br><span class="line">Master[2] -&gt; Slots 10923 - 16383</span><br><span class="line">Adding replica 172.18.0.15:6379 to 172.18.0.11:6379</span><br><span class="line">Adding replica 172.18.0.16:6379 to 172.18.0.12:6379</span><br><span class="line">Adding replica 172.18.0.14:6379 to 172.18.0.13:6379</span><br><span class="line">M: 3d12668a4061034de1ce96008a03b2c12487c0b0 172.18.0.11:6379</span><br><span class="line">   slots:[0-5460] (5461 slots) master</span><br><span class="line">M: 3ada3b418581f12ae5ae3fba9dfbf6ff6b0572a8 172.18.0.12:6379</span><br><span class="line">   slots:[5461-10922] (5462 slots) master</span><br><span class="line">M: b4ec70894415549f06c280a45b02c88405c3426c 172.18.0.13:6379</span><br><span class="line">   slots:[10923-16383] (5461 slots) master</span><br><span class="line">S: 2b9514f61f37ea9e26d01fa520c1ce17a578aa5b 172.18.0.14:6379</span><br><span class="line">   replicates b4ec70894415549f06c280a45b02c88405c3426c</span><br><span class="line">S: 5ddcae45a54ddc06969b322239882606f2aca042 172.18.0.15:6379</span><br><span class="line">   replicates 3d12668a4061034de1ce96008a03b2c12487c0b0</span><br><span class="line">S: 302a8edb642d38121bc3fbcf44ac83686e1f2405 172.18.0.16:6379</span><br><span class="line">   replicates 3ada3b418581f12ae5ae3fba9dfbf6ff6b0572a8</span><br><span class="line">Can I set the above configuration? (type &#x27;yes&#x27; to accept): yes</span><br><span class="line"><span class="meta">&gt;</span><span class="bash">&gt;&gt; Nodes configuration updated</span></span><br><span class="line"><span class="meta">&gt;</span><span class="bash">&gt;&gt; Assign a different config epoch to each node</span></span><br><span class="line"><span class="meta">&gt;</span><span class="bash">&gt;&gt; Sending CLUSTER MEET messages to join the cluster</span></span><br><span class="line">Waiting for the cluster to join</span><br><span class="line">....</span><br><span class="line"><span class="meta">&gt;</span><span class="bash">&gt;&gt; Performing Cluster Check (using node 172.18.0.11:6379)</span></span><br><span class="line">M: 3d12668a4061034de1ce96008a03b2c12487c0b0 172.18.0.11:6379</span><br><span class="line">   slots:[0-5460] (5461 slots) master</span><br><span class="line">   1 additional replica(s)</span><br><span class="line">M: 3ada3b418581f12ae5ae3fba9dfbf6ff6b0572a8 172.18.0.12:6379</span><br><span class="line">   slots:[5461-10922] (5462 slots) master</span><br><span class="line">   1 additional replica(s)</span><br><span class="line">S: 302a8edb642d38121bc3fbcf44ac83686e1f2405 172.18.0.16:6379</span><br><span class="line">   slots: (0 slots) slave</span><br><span class="line">   replicates 3ada3b418581f12ae5ae3fba9dfbf6ff6b0572a8</span><br><span class="line">S: 5ddcae45a54ddc06969b322239882606f2aca042 172.18.0.15:6379</span><br><span class="line">   slots: (0 slots) slave</span><br><span class="line">   replicates 3d12668a4061034de1ce96008a03b2c12487c0b0</span><br><span class="line">M: b4ec70894415549f06c280a45b02c88405c3426c 172.18.0.13:6379</span><br><span class="line">   slots:[10923-16383] (5461 slots) master</span><br><span class="line">   1 additional replica(s)</span><br><span class="line">S: 2b9514f61f37ea9e26d01fa520c1ce17a578aa5b 172.18.0.14:6379</span><br><span class="line">   slots: (0 slots) slave</span><br><span class="line">   replicates b4ec70894415549f06c280a45b02c88405c3426c</span><br><span class="line">[OK] All nodes agree about slots configuration.</span><br><span class="line"><span class="meta">&gt;</span><span class="bash">&gt;&gt; Check <span class="keyword">for</span> open slots...</span></span><br><span class="line"><span class="meta">&gt;</span><span class="bash">&gt;&gt; Check slots coverage...</span></span><br><span class="line">[OK] All 16384 slots covered.</span><br></pre></td></tr></table></figure>
+<p>如上，集群创建成功</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line">进入集群查看相关信息</span><br><span class="line">/data # redis-cli -c</span><br><span class="line">127.0.0.1:6379&gt; CLUSTER INFO</span><br><span class="line">cluster_state:ok</span><br><span class="line">cluster_slots_assigned:16384</span><br><span class="line">cluster_slots_ok:16384</span><br><span class="line">cluster_slots_pfail:0</span><br><span class="line">cluster_slots_fail:0</span><br><span class="line">cluster_known_nodes:6</span><br><span class="line">cluster_size:3</span><br><span class="line">cluster_current_epoch:6</span><br><span class="line">cluster_my_epoch:1</span><br><span class="line">cluster_stats_messages_ping_sent:524</span><br><span class="line">cluster_stats_messages_pong_sent:507</span><br><span class="line">cluster_stats_messages_sent:1031</span><br><span class="line">cluster_stats_messages_ping_received:502</span><br><span class="line">cluster_stats_messages_pong_received:524</span><br><span class="line">cluster_stats_messages_meet_received:5</span><br><span class="line">cluster_stats_messages_received:1031</span><br><span class="line">127.0.0.1:6379&gt; CLUSTER NODES</span><br><span class="line">3ada3b418581f12ae5ae3fba9dfbf6ff6b0572a8 172.18.0.12:6379@16379 master - 0 1603776351398 2 connected 5461-10922</span><br><span class="line">302a8edb642d38121bc3fbcf44ac83686e1f2405 172.18.0.16:6379@16379 slave 3ada3b418581f12ae5ae3fba9dfbf6ff6b0572a8 0 1603776351000 6 connected</span><br><span class="line">5ddcae45a54ddc06969b322239882606f2aca042 172.18.0.15:6379@16379 slave 3d12668a4061034de1ce96008a03b2c12487c0b0 0 1603776351599 5 connected</span><br><span class="line">3d12668a4061034de1ce96008a03b2c12487c0b0 172.18.0.11:6379@16379 myself,master - 0 1603776350000 1 connected 0-5460</span><br><span class="line">b4ec70894415549f06c280a45b02c88405c3426c 172.18.0.13:6379@16379 master - 0 1603776350591 3 connected 10923-16383</span><br><span class="line">2b9514f61f37ea9e26d01fa520c1ce17a578aa5b 172.18.0.14:6379@16379 slave b4ec70894415549f06c280a45b02c88405c3426c 0 1603776351000 4 connected</span><br><span class="line">127.0.0.1:6379&gt; </span><br></pre></td></tr></table></figure>
+<p><strong>测试</strong></p>
+<ul>
+<li>我们来设个值，再将存值的主机停掉，然后查看是否可以获取到key</li>
+</ul>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; SET a b</span><br><span class="line"><span class="meta">-&gt;</span><span class="bash"> Redirected to slot [15495] located at 172.18.0.13:6379</span></span><br><span class="line">OK</span><br><span class="line">————————————————————————————————————————————————————————————————————————————</span><br><span class="line">[root@web conf]# docker stop redis-3</span><br><span class="line">redis-3</span><br><span class="line">—————————————————————————————————————————————————————————————————————————————</span><br><span class="line"><span class="meta">#</span><span class="bash"> 停掉获取key的主机后，再次进入集群，重新获取key</span></span><br><span class="line">[root@web conf]# docker exec -it redis-1 /bin/sh</span><br><span class="line">/data # get a</span><br><span class="line">/bin/sh: get: not found</span><br><span class="line">/data # redis-cli -c</span><br><span class="line">127.0.0.1:6379&gt; get a</span><br><span class="line"><span class="meta">-&gt;</span><span class="bash"> Redirected to slot [15495] located at 172.18.0.14:6379</span></span><br><span class="line">&quot;b&quot;</span><br></pre></td></tr></table></figure>
+<p>如上发现主机宕机，从机会自动升级为主节点！</p>
+<h2 id="SpringBoot-微服务打包Docker镜像"><a href="#SpringBoot-微服务打包Docker镜像" class="headerlink" title="SpringBoot 微服务打包Docker镜像"></a>SpringBoot 微服务打包Docker镜像</h2><p>1、构架spingboot项目</p>
+<p>2、打包应用</p>
+<p>3、编写Dokcerfile</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">FROM java:8</span><br><span class="line"></span><br><span class="line">COPY demo-0.0.1-SNAPSHOT.jar /app.jar</span><br><span class="line"></span><br><span class="line">CMD [&quot;server.port = 8080&quot;]</span><br><span class="line"></span><br><span class="line">EXPOSE 8080</span><br><span class="line"></span><br><span class="line">ENTRYPOINT [&quot;java&quot;,&quot;-jar&quot;,&quot;/app.jar&quot;]</span><br></pre></td></tr></table></figure>
+<p>4、构建镜像</p>
+<p>5、发布运行！</p>
+
+    </div>
+
+    
+    
+    
+        <div class="reward-container">
+  <div></div>
+  <button onclick="var qr = document.getElementById('qr'); qr.style.display = (qr.style.display === 'none') ? 'block' : 'none';">
+    打赏
+  </button>
+  <div id="qr" style="display: none;">
+      
+      <div style="display: inline-block;">
+        <img src="/images/wechatpay.jpg" alt="BaoHua Li 微信支付">
+        <p>微信支付</p>
+      </div>
+      
+      <div style="display: inline-block;">
+        <img src="/images/alipay.jpg" alt="BaoHua Li 支付宝">
+        <p>支付宝</p>
+      </div>
+
+  </div>
+</div>
+
+        
+
+  <div class="followme">
+    <p>欢迎关注我的其它发布渠道</p>
+
+    <div class="social-list">
+
+        <div class="social-item">
+          <a target="_blank" class="social-link" href="/atom.xml">
+            <span class="icon">
+              <i class="fa fa-rss"></i>
+            </span>
+
+            <span class="label">RSS</span>
+          </a>
+        </div>
+    </div>
+  </div>
+
+
+      <footer class="post-footer">
+          
+          <div class="post-tags">
+              <a href="/tags/Docker/" rel="tag"><i class="fa fa-tag"></i> Docker</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2020/11/05/Docker/DockerFile/" rel="prev" title="五、DockerFile">
+      <i class="fa fa-chevron-left"></i> 五、DockerFile
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2020/11/21/Docker/DockerCompose/" rel="next" title="七、DockerCompose">
+      七、DockerCompose <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Docker-%E7%BD%91%E7%BB%9C"><span class="nav-number">1.</span> <span class="nav-text">Docker 网络</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%90%86%E8%A7%A3Docker0"><span class="nav-number">1.1.</span> <span class="nav-text">理解Docker0</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E2%80%93link"><span class="nav-number">1.2.</span> <span class="nav-text">–link</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%87%AA%E5%AE%9A%E4%B9%89%E7%BD%91%E7%BB%9C"><span class="nav-number">1.3.</span> <span class="nav-text">自定义网络</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%BD%91%E7%BB%9C%E8%BF%9E%E9%80%9A"><span class="nav-number">1.4.</span> <span class="nav-text">网络连通</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%AE%9E%E6%88%98Redis%E9%83%A8%E7%BD%B2%E9%9B%86%E7%BE%A4"><span class="nav-number">1.5.</span> <span class="nav-text">实战Redis部署集群</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#SpringBoot-%E5%BE%AE%E6%9C%8D%E5%8A%A1%E6%89%93%E5%8C%85Docker%E9%95%9C%E5%83%8F"><span class="nav-number">1.6.</span> <span class="nav-text">SpringBoot 微服务打包Docker镜像</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="BaoHua Li"
+      src="/images/user.gif">
+  <p class="site-author-name" itemprop="name">BaoHua Li</p>
+  <div class="site-description" itemprop="description">直到这一刻微笑着说话为止，我至少留下了一公升眼泪</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">19</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">7</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/BrendanLi136/BrendanLi136.github.io" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;BrendanLi136&#x2F;BrendanLi136.github.io" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:brendanli@163.com" title="E-Mail → mailto:brendanli@163.com" rel="noopener" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://blog.csdn.net/qq_43212296" title="CSDN → https:&#x2F;&#x2F;blog.csdn.net&#x2F;qq_43212296" rel="noopener" target="_blank"><i class="fa fa-crosshairs fa-fw"></i>CSDN</a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2021</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">BaoHua Li</span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item-icon">
+      <i class="fa fa-chart-area"></i>
+    </span>
+    <span title="站点总字数">133k</span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item-icon">
+      <i class="fa fa-coffee"></i>
+    </span>
+    <span title="站点阅读时长">2:01</span>
+</div>
+
+        
+<div class="busuanzi-count">
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <span class="post-meta-item" id="busuanzi_container_site_uv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>
